@@ -6,7 +6,7 @@ require "observer"
 class Player
   include Observable
   
-  attr_reader :color, :pieces
+  attr_reader :color, :pieces, :pits
   
   def initialize(color)
     @color = color
@@ -17,18 +17,50 @@ class Player
     me
   end
   
+  def running_pieces?
+    !running_pieces.empty?
+  end
+  
+  def running_pieces
+    @pieces.select(&:in_game?)
+  end
+  
+  def waiting_pieces?
+   !waiting_pieces.empty?
+  end
+  
+  def waiting_pieces
+    @pieces.select{ |p| p.in_game? == false }
+  end
+  
+  def empty_start?
+    @pieces.select(&:on_start?).empty?
+  end
+  
   def play
-    if @pieces.first.in_game?
-      number_of_pits = throw_dice
-      @pieces.first.move_by number_of_pits
-    else
-      @pieces.first.move_to 1
+    
+    if not running_pieces?
+      3.times { waiting_pieces.first.move_to(1) && break if (throw_dice == 6) }
     end
+    
+    if running_pieces?
+      case throw_dice
+      when 6, waiting_pieces?, empty_start?
+        waiting_pieces.first.move_to(1)
+      else
+        running_pieces.shuffle.first.move_by(@pits)
+      end
+    end
+    
+    
+    #timeout = Thread.new(self) { sleep(2); Thread.main.wakeup }
+    #changed && notify_observers(Time.now, self, :moved)
+    #alarm = Thread.new(self) { sleep(5); Thread.main.wakeup }
     Thread.new do 
-      sleep 1
-      puts ">> #{@pieces.first.position.to_s}"
+      sleep(1)
       changed && notify_observers(Time.now, self, :moved)
     end
+   
   end
   
   private
@@ -39,7 +71,7 @@ class Player
   def throw_dice
     pits = 1 + rand(6)
     puts "#{me} has thrown a #{pits}"
-    pits
+    @pits = pits
   end
 end
 
@@ -63,6 +95,10 @@ class Piece
     (1..Board::NumberOfFields).include?(@position)
   end
   
+  def on_start?
+    @position == 1
+  end
+  
   def asset
     "media/#{@color.to_s}.png"
   end
@@ -76,7 +112,6 @@ class Board
   def initialize (width=640, height=480)
     @fields = {}
     @diameter, @margin = 30, 10
-    
     @offset_x, @offset_y = (width-40*11)/2, (height-40 *11)/2
     @grid = [
         [5,11], [5,10], [5,9], [5,8], [5,7],
@@ -130,15 +165,18 @@ class Game
   end
   
   def update(time, observable, message = :none)
-    case observable.class.name
-      when "Player"
-        puts "#{observable.describe}: #{message.to_s}" if message == :moved
-      else
-        puts "Recieved message from a #{observable.class.name}"
+    case 
+    when observable.is_a?(Player), message == :moved
+      puts "#{observable.describe}: #{message.to_s}"
+      rotate unless (observable.pits == 6)
+      current.play if running?
+    
+    when observable.is_a?(Player), message.is_a?(String)
+      puts "#{observable.describe}: #{message}"
+    
+    else
+      puts "Recieved message from a #{observable.class.name}"
     end
-    puts "#{observable.describe} finished move"
-    rotate
-    current.play if running?
   end
   
   def running?
@@ -186,7 +224,6 @@ class Screen < Gosu::Window
   end
   
   def update
-    #puts @player.pieces.first.position
   end
   
   def draw
@@ -208,8 +245,6 @@ class Screen < Gosu::Window
   end
   
   def draw_board
-    #@background = Gosu::Image.new(self, "media/board.png", true)
-    #@background.draw(0, 0, 0)
     @game.board.offsets.each do |coords|
       image = Gosu::Image.new(self, "media/empty.png", true)
       image.draw(coords.first, coords.last, 1)
