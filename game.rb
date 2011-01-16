@@ -1,10 +1,11 @@
 require 'rubygems'
 require 'backports'
 require 'gosu'
-require "observer"
+# require "observer"
+require 'singleton'
 
 class Player
-  include Observable
+  #include Observable
   
   attr_reader :color, :pieces, :pits
   
@@ -37,6 +38,10 @@ class Player
     @pieces.select(&:on_start?).empty?
   end
   
+  def was_six?
+    @pits == 6
+  end
+  
   def play
     
     if not running_pieces?
@@ -44,23 +49,23 @@ class Player
     end
     
     if running_pieces?
-      case throw_dice
-      when 6, waiting_pieces?, empty_start?
+      throw_dice
+      if was_six? && waiting_pieces? && empty_start?
         waiting_pieces.first.move_to(1)
       else
-        running_pieces.shuffle.first.move_by(@pits)
+        sorted_pieces = running_pieces.sort.reverse
+        sorted_pieces.rotate! if sorted_pieces.last.on_start?
+        sorted_pieces.each do |piece|
+          target = piece.calculate_target(@pits)
+          unless running_pieces.any?{ |other| other.on?(target)}
+            piece.move_to(target) 
+            puts "#{me} moved piece to #{target}"
+            break
+          end
+        end 
       end
     end
-    
-    
-    #timeout = Thread.new(self) { sleep(2); Thread.main.wakeup }
-    #changed && notify_observers(Time.now, self, :moved)
-    #alarm = Thread.new(self) { sleep(5); Thread.main.wakeup }
-    Thread.new do 
-      sleep(1)
-      changed && notify_observers(Time.now, self, :moved)
-    end
-   
+    Game.instance.update(Time.now, self, :moved)   
   end
   
   private
@@ -83,8 +88,16 @@ class Piece
     @position = :out
   end
   
-  def move_by number_of_pits
-    move_to (@position + number_of_pits)
+  def <=>(other)
+    self.position <=> other.position 
+  end
+  
+  def calculate_target(pits)
+    (@position + pits)
+  end
+  
+  def move_by pits
+    move_to calculate_target(pits)
   end
   
   def move_to position
@@ -97,6 +110,10 @@ class Piece
   
   def on_start?
     @position == 1
+  end
+  
+  def on?(target)
+    @position == target
   end
   
   def asset
@@ -156,11 +173,12 @@ class Board
 end
 
 class Game
+  include Singleton
   
   attr_reader :board, :players
   
-  def initialize(board)
-    @board   = board
+  def initialize
+    @board   = Board.new
     @players = Array.new(@board.colors.size) { |i| create_player(@board.colors[i]) }
   end
   
@@ -169,7 +187,6 @@ class Game
     when observable.is_a?(Player), message == :moved
       puts "#{observable.describe}: #{message.to_s}"
       rotate unless (observable.pits == 6)
-      current.play if running?
     
     when observable.is_a?(Player), message.is_a?(String)
       puts "#{observable.describe}: #{message}"
@@ -205,8 +222,6 @@ class Game
   
   def create_player(color)
     player = Player.new(color)
-    player.add_observer(self)
-    player
   end
 end
 
@@ -214,16 +229,20 @@ class Screen < Gosu::Window
   def initialize
     super(640, 480, false)
     self.caption = "Gamblers"
-    @board      = Board.new
-    @game       = Game.new(@board)
+    @game        = Game.instance
   end
   
   def button_down(id)
-    close     if id == Gosu::KbEscape # or super
-    @game.run if id == Gosu::KbReturn
+    close  if id == Gosu::KbEscape
   end
   
   def update
+    @last_update ||= Gosu.milliseconds
+    if (Gosu.milliseconds-@last_update > 2000)
+      @last_update = Gosu.milliseconds
+      Game.instance.run
+      Game.instance.pause
+    end
   end
   
   def draw
