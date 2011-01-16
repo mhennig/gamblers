@@ -1,0 +1,18 @@
+GEM
+  remote: http://rubygems.org/
+  specs:
+    backports (1.18.2)
+    blather (0.4.14)
+      eventmachine (>= 0.12.6)
+      nokogiri (>= 1.4.0)
+    eventmachine (0.12.10)
+    gosu (0.7.26.1)
+    nokogiri (1.4.4)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  backports
+  blather
+  gosu
