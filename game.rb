@@ -1,21 +1,26 @@
 require 'rubygems'
 require 'backports'
 require 'gosu'
-# require "observer"
 require 'singleton'
 
 class Player
-  #include Observable
-  
-  attr_reader :color, :pieces, :pits
+  attr_reader :color, :pieces, :announcement, :pits
   
   def initialize(color)
     @color = color
-    @pieces = Array.new(4) { |i| Piece.new(color) }
+    @pieces = Array.new(4) { |i| Piece.new(color, i) }
   end
   
   def describe
     me
+  end
+  
+  def announce(piece, position)
+    @announcement = [piece, position]
+  end
+  
+  def move_announced?
+    !announcement.nil?
   end
   
   def running_pieces?
@@ -26,12 +31,8 @@ class Player
     @pieces.select(&:in_game?)
   end
   
-  def waiting_pieces?
-   !waiting_pieces.empty?
-  end
-  
   def waiting_pieces
-    @pieces.select{ |p| p.in_game? == false }
+    @pieces.select(&:out?)
   end
   
   def empty_start?
@@ -43,29 +44,29 @@ class Player
   end
   
   def play
+    @announcement = nil
     
-    if not running_pieces?
+    if waiting_pieces.size == 4
       3.times { waiting_pieces.first.move_to(1) && break if (throw_dice == 6) }
     end
     
     if running_pieces?
       throw_dice
-      if was_six? && waiting_pieces? && empty_start?
-        waiting_pieces.first.move_to(1)
+      if was_six? && !waiting_pieces.empty? && empty_start?
+        announce(waiting_pieces.first, 1)
       else
         sorted_pieces = running_pieces.sort.reverse
-        sorted_pieces.rotate! if sorted_pieces.last.on_start?
+        sorted_pieces.rotate! if sorted_pieces.last.on_start? && !waiting_pieces.empty?
         sorted_pieces.each do |piece|
           target = piece.calculate_target(@pits)
           unless running_pieces.any?{ |other| other.on?(target)}
-            piece.move_to(target) 
-            puts "#{me} moved piece to #{target}"
+            announce(piece, target)
             break
           end
         end 
       end
     end
-    Game.instance.update(Time.now, self, :moved)   
+    Game.instance.update(Time.now, self, :finished_move)
   end
   
   private
@@ -81,11 +82,12 @@ class Player
 end
 
 class Piece
-  attr_reader :color, :position
+  attr_reader :color, :position, :number
   
-  def initialize(color)
+  def initialize(color, number)
     @color = color
     @position = :out
+    @number = number
   end
   
   def <=>(other)
@@ -93,14 +95,16 @@ class Piece
   end
   
   def calculate_target(pits)
-    (@position + pits)
+    target = (@position + pits)
+    #target > Board::NumberOfFields ? :home : target
   end
   
   def move_by pits
     move_to calculate_target(pits)
   end
   
-  def move_to position
+  def move_to(position)
+    puts "#{color.to_s.capitalize}: Uuuuuuuuuuuh!" if position == :out
     @position = position
   end
   
@@ -111,9 +115,17 @@ class Piece
   def on_start?
     @position == 1
   end
-  
+
   def on?(target)
     @position == target
+  end
+  
+  def out?
+    @position == :out
+  end
+  
+  def home?
+    @position > Board::NumberOfFields
   end
   
   def asset
@@ -122,36 +134,47 @@ class Piece
 end
 
 class Board
-  
+
   StartFields = {:yellow => 1, :red => 11, :blue => 21, :green => 31}
   NumberOfFields = 40
     
+  attr_reader :round, :outs, :homes
+  
   def initialize (width=640, height=480)
-    @fields = {}
+    @fields = []
     @diameter, @margin = 30, 10
     @offset_x, @offset_y = (width-40*11)/2, (height-40 *11)/2
-    @grid = [
-        [5,11], [5,10], [5,9], [5,8], [5,7],
-        [4,7], [3,7], [2,7], [1,7],
-        [1,6], [1,5],
-        [2,5], [3,5], [4,5], [5,5],
-        [5,4], [5,3], [5,2], [5,1],
-        [6,1], [7,1],
-        [7,2], [7,3], [7,4], [7,5],
-        [8,5], [9,5], [10,5], [11,5],
-        [11,6], [11,7],
-        [10,7], [9,7], [8,7], [7,7],
-        [7,8], [7,9], [7,10], [7,11],
-        [6,11]
-      ]
+    @round = [ [5,11], [5,10], [5,9], [5,8], [5,7],
+               [4,7], [3,7], [2,7], [1,7],
+               [1,6], [1,5],
+               [2,5], [3,5], [4,5], [5,5],
+               [5,4], [5,3], [5,2], [5,1],
+               [6,1], [7,1],
+               [7,2], [7,3], [7,4], [7,5],
+               [8,5], [9,5], [10,5], [11,5],
+               [11,6], [11,7],
+               [10,7], [9,7], [8,7], [7,7],
+               [7,8], [7,9], [7,10], [7,11],
+               [6,11] ]
+      
+    @outs =  { :yellow => [[1,11], [2,11], [1,10], [2,10]],
+               :red => [[1,1], [2,1], [1,2], [2,2]],
+               :blue => [[10,1], [11,1], [10,2], [11,2]],
+               :green => [[10,10], [11,10], [10,11], [11,11]] }
+              
+    @homes = { :yellow => [[6,10], [6,9], [6,8], [6,7]],
+               :red => [[2,6], [3,6], [4,6], [5,6]],
+               :blue => [[6,2], [6,3], [6,4], [6,5]],
+               :green => [[10,6], [9,6], [8,6], [7,6]] }
+    
   end
   
   def colors
     StartFields.keys
   end
   
-  def offsets
-    @grid.map do |coords| 
+  def offsets(grid)
+    grid.map do |coords| 
       x,y = coords
       x = @offset_x + (x-1) * (@diameter + @margin)
       y = @offset_y + (y-1) * (@diameter + @margin)
@@ -164,11 +187,30 @@ class Board
   end
   
   def offset_for(piece)
-    offsets[translate_position_of(piece)-1]
+    if piece.in_game?
+      offsets(@round)[translate_position_of(piece)-1]
+      
+    elsif piece.out?
+      offsets(@outs[piece.color])[piece.number]
+      
+    elsif piece.home?
+      offsets(@homes[piece.color])[piece.number]
+      
+    else
+      [-100, -100]
+    end
   end
   
-  def field_available?
-    
+  def set(piece, target)
+    @fields[@fields.index(piece)] = nil unless @fields.index(piece).nil?
+    piece.move_to target
+    position_on_field = translate_position_of(piece)
+    remove_piece_from(position_on_field)
+    @fields[position_on_field] = piece
+  end
+  
+  def remove_piece_from(position)
+    @fields[position].move_to(:out) if @fields[position].is_a?(Piece)
   end
 end
 
@@ -184,8 +226,11 @@ class Game
   
   def update(time, observable, message = :none)
     case 
-    when observable.is_a?(Player), message == :moved
-      puts "#{observable.describe}: #{message.to_s}"
+    when observable.is_a?(Player), message == :finished_move
+      if observable.move_announced?
+        piece, target = observable.announcement
+        @board.set(piece, target)
+      end
       rotate unless (observable.pits == 6)
     
     when observable.is_a?(Player), message.is_a?(String)
@@ -199,14 +244,18 @@ class Game
   def running?
     @status == :running
   end
-  
+    
   def pause
     @status = :paused
+    current.pieces.each { |p| puts "#{p.color} is on #{p.position}"}
   end
   
-  def run
+  def resume
     @status = :running
-    current.play
+  end
+  
+  def play
+    current.play if running?
   end
   
   private
@@ -233,15 +282,15 @@ class Screen < Gosu::Window
   end
   
   def button_down(id)
-    close  if id == Gosu::KbEscape
+    close if id == Gosu::KbEscape
+    (@game.running? ? @game.pause : @game.resume) if id == Gosu::KbSpace
   end
   
   def update
     @last_update ||= Gosu.milliseconds
-    if (Gosu.milliseconds-@last_update > 2000)
+    if (Gosu.milliseconds-@last_update > 10)
       @last_update = Gosu.milliseconds
-      Game.instance.run
-      Game.instance.pause
+      Game.instance.play
     end
   end
   
@@ -255,22 +304,26 @@ class Screen < Gosu::Window
     @game.players.each do |player|
       player.pieces.each_with_index do |piece, number|
         image = Gosu::Image.new(self, piece.asset, true)
-        if piece.in_game?
-          x,y = @game.board.offset_for(piece)
-          image.draw(x, y, 3)
-        end
+        x,y = @game.board.offset_for(piece)
+        image.draw(x, y, 3)
       end
     end
   end
   
   def draw_board
-    @game.board.offsets.each do |coords|
+    @game.board.offsets(@game.board.round).each do |coords|
       image = Gosu::Image.new(self, "media/empty.png", true)
       image.draw(coords.first, coords.last, 1)
     end
-  end
     
+    @game.board.colors.each do |color|
+      @game.board.offsets(@game.board.homes[color]).each do |coords|
+        image = Gosu::Image.new(self, "media/empty.png", true)
+        image.draw(coords.first, coords.last, 1)
+      end
+    end
+  end
 end
 
-window = Screen.new
-window.show
+gamblers = Screen.new
+gamblers.show
