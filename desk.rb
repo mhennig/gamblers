@@ -1,6 +1,9 @@
+require 'rubygems'
+require 'gosu'
+
 $:.unshift(File.dirname(__FILE__)) unless
   $:.include?(File.dirname(__FILE__)) || $:.include?(File.expand_path(File.dirname(__FILE__)))
-  
+
 require 'lib/gamblers'
 
 class Screen < Gosu::Window
@@ -17,9 +20,9 @@ class Screen < Gosu::Window
   
   def update
     @last_update ||= Gosu.milliseconds
-    if (Gosu.milliseconds-@last_update > 10)
+    if (Gosu.milliseconds-@last_update > 3000)
       @last_update = Gosu.milliseconds
-      @game .play
+      @game.play
     end
   end
   

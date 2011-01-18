@@ -14,7 +14,6 @@ module Gamblers
   
     def calculate_target(pits)
       target = (@position + pits)
-      #target > Board::NumberOfFields ? :home : target
     end
   
     def move_by pits
@@ -22,7 +21,7 @@ module Gamblers
     end
   
     def move_to(position)
-      puts "#{color.to_s.capitalize}: Uuuuuuuuuuuh!" if position == :out
+      Game.instance.chat.say color, ["Uuuh! Why did you kick me out?", "Damn! I was kicked!", "Argh. You kicked me off!", "©ªª∆¥µπå ∂dœ∆º∂"].shuffle.first  if position == :out
       @position = position
     end
   

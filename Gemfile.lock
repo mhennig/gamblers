@@ -8,6 +8,9 @@ GEM
     eventmachine (0.12.10)
     gosu (0.7.26.1)
     nokogiri (1.4.4)
+    xmpp4r (0.5)
+    xmpp4r-simple (0.8.8)
+      xmpp4r (>= 0.3.2)
 
 PLATFORMS
   ruby
@@ -16,3 +19,4 @@ DEPENDENCIES
   backports
   blather
   gosu
+  xmpp4r-simple

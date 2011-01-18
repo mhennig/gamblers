@@ -1,12 +1,26 @@
 module Gamblers
+  
+  class PlayerUnavailable < RuntimeError; end
+  
+  
   class Player
+    
+    attr_accessor :jid, :presence
     attr_reader :color, :pieces, :announcement, :pits
 
     def initialize(color)
       @color = color
+      reset
+    end
+    
+    def reset
       @pieces = Array.new(4) { |i| Piece.new(color, i) }
     end
-
+    
+    def available?
+      (presence.to_s == "online")
+    end
+    
     def describe
       me
     end
@@ -40,6 +54,8 @@ module Gamblers
     end
 
     def play
+      raise PlayerUnavailable, "#{describe} is currently not available" unless available?
+      
       @announcement = nil
 
       if waiting_pieces.size == 4
@@ -62,6 +78,7 @@ module Gamblers
           end 
         end
       end
+      Game.instance.chat.say jid, ["Finished", "Next", "Ready", "That's it"].shuffle.first
       Game.instance.update(Time.now, self, :finished_move)
     end
 
@@ -72,7 +89,7 @@ module Gamblers
 
     def throw_dice
       pits = 1 + rand(6)
-      puts "#{me} has thrown a #{pits}"
+      Game.instance.chat.say jid, "Thrown dice and got #{pits} pits"
       @pits = pits
     end
   end
