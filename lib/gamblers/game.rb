@@ -47,7 +47,9 @@ module Gamblers
 
     def pause
       @status = :paused
-      current.pieces.each { |p| puts "#{p.color} is on #{p.position}"}
+      players.each do |player| 
+        player.pieces.each { |p| puts "#{p.color} is on #{p.position}"}
+      end
     end
   
     def resume

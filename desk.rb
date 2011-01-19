@@ -7,10 +7,14 @@ $:.unshift(File.dirname(__FILE__)) unless
 require 'lib/gamblers'
 
 class Screen < Gosu::Window
+  
+  attr_reader :game
+  
   def initialize
     super(640, 480, false)
     self.caption = "Gamblers"
-    @game        = Gamblers::Game.instance
+    @game = Gamblers::Game.instance
+    @game.resume
   end
   
   def button_down(id)
@@ -20,7 +24,7 @@ class Screen < Gosu::Window
   
   def update
     @last_update ||= Gosu.milliseconds
-    if (Gosu.milliseconds-@last_update > 3000)
+    if (Gosu.milliseconds-@last_update > 100)
       @last_update = Gosu.milliseconds
       @game.play
     end
@@ -48,12 +52,12 @@ class Screen < Gosu::Window
       image.draw(coords.first, coords.last, 1)
     end
     
-    @game.board.colors.each do |color|
-      @game.board.offsets(@game.board.homes[color]).each do |coords|
-        image = Gosu::Image.new(self, "media/empty.png", true)
-        image.draw(coords.first, coords.last, 1)
-      end
-    end
+    # @game.board.colors.each do |color|
+    #       @game.board.offsets(@game.board.homes[color]).each do |coords|
+    #         image = Gosu::Image.new(self, "media/empty.png", true)
+    #         image.draw(coords.first, coords.last, 1)
+    #       end
+    #     end
   end
 end
 

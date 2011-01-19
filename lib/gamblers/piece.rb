@@ -1,4 +1,7 @@
 module Gamblers
+  
+  class OutOfBounds < RuntimeError; end
+  
   class Piece
     attr_reader :color, :position, :number
   
@@ -13,7 +16,15 @@ module Gamblers
     end
   
     def calculate_target(pits)
-      target = (@position + pits)
+      available_fields = Board::NumberOfFields+4
+      current_position = home? ? @position.abs + Board::NumberOfFields : @position
+      target = (current_position + pits)
+      if target > available_fields
+        nil
+      else
+        target > Board::NumberOfFields ? -(target-Board::NumberOfFields) : target
+      end
+      
     end
   
     def move_by pits
@@ -26,9 +37,9 @@ module Gamblers
     end
   
     def in_game?
-      (1..Board::NumberOfFields).include?(@position)
+      (1..Board::NumberOfFields).include?(@position) || (-1..-4).include?(@position)
     end
-  
+
     def on_start?
       @position == 1
     end
@@ -42,7 +53,7 @@ module Gamblers
     end
   
     def home?
-      @position > Board::NumberOfFields
+      @position.is_a?(Integer) && @position < 0 #Board::NumberOfFields
     end
   
     def asset

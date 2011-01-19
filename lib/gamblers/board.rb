@@ -60,7 +60,7 @@ module Gamblers
         offsets(@outs[piece.color])[piece.number]
 
       elsif piece.home?
-        offsets(@homes[piece.color])[piece.number]
+        offsets(@homes[piece.color])[piece.position.abs-1]
 
       else
         [-100, -100]
@@ -70,9 +70,11 @@ module Gamblers
     def set(piece, target)
       @fields[@fields.index(piece)] = nil unless @fields.index(piece).nil?
       piece.move_to target
-      position_on_field = translate_position_of(piece)
-      remove_piece_from(position_on_field)
-      @fields[position_on_field] = piece
+      unless piece.home?
+        position_on_field = translate_position_of(piece)
+        remove_piece_from(position_on_field)
+        @fields[position_on_field] = piece
+      end
     end
 
     def remove_piece_from(position)
