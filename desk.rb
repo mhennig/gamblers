@@ -10,10 +10,13 @@ class Screen < Gosu::Window
   
   attr_reader :game
   
-  def initialize
+  def initialize(jid, jabber_password, moves_per_minute)
     super(640, 480, false)
     self.caption = "Gamblers"
+    @wait_for_next_move = (60/moves_per_minute*1000)
     @game = Gamblers::Game.instance
+    @game.jid = jid
+    @game.jabber_password = jabber_password
     @game.resume
   end
   
@@ -24,7 +27,7 @@ class Screen < Gosu::Window
   
   def update
     @last_update ||= Gosu.milliseconds
-    if (Gosu.milliseconds-@last_update > 100)
+    if (Gosu.milliseconds-@last_update > @wait_for_next_move)
       @last_update = Gosu.milliseconds
       @game.play
     end
@@ -61,5 +64,15 @@ class Screen < Gosu::Window
   end
 end
 
-gamblers = Screen.new
-gamblers.show
+
+if ARGV.size != 3
+  puts "Usage:"
+  puts "ruby #{$0} <jid> <password> <moves_per_minute>"
+  exit
+else   
+  jid, password, moves_per_minute = ARGV
+  gamblers = Screen.new(jid, password, moves_per_minute.to_i)
+  gamblers.show
+end
+
+

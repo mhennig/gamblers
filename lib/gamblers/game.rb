@@ -1,6 +1,9 @@
 module Gamblers  
   class Game
+    
     include Singleton
+    
+    attr_accessor :jid, :jabber_password
     attr_reader :board
   
     def initialize
@@ -17,11 +20,15 @@ module Gamblers
     end
     
     def chat
-      @chat ||= Chat.new("game", jabber_host, "game")
+      @chat ||= Chat.new(jabber_node, jabber_host, jabber_password)
+    end
+    
+    def jabber_node
+      @jid.split("@").first
     end
     
     def jabber_host
-      "im.freebsd.local"
+      @jid.split("@").last
     end
     
     def update(time, observable, message = :none)
@@ -40,7 +47,11 @@ module Gamblers
         puts "Recieved message from a #{observable.class.name}"
       end
     end
-  
+    
+    def finished?
+      available_players.all?(&:finished?)
+    end
+    
     def running?
       @status == :running
     end
@@ -57,6 +68,11 @@ module Gamblers
     end
   
     def play
+      
+      if finished?
+        @players.each { |player| player.reset }
+      end
+      
       if current && running?
         begin
           current.play 

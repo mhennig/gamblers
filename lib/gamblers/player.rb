@@ -48,7 +48,11 @@ module Gamblers
     def empty_start?
       @pieces.select{ |piece| piece.on_start? }.empty?
     end
-
+    
+    def finished?
+      @pieces.select{ |p| p.home? }.size == 4
+    end
+    
     def was_six?
       @pits == 6
     end
